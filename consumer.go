@@ -15,8 +15,9 @@ import (
 type CallbackFunc func(*sqs.Message) error
 
 type SQSConsumer struct {
-	svc      *sqs.SQS
-	queueURL string
+	svc            *sqs.SQS
+	queueURL       string
+	messageGroupID string
 }
 
 func NewSQSConsumer(queueURL, accessKeyID, secretAccessKey, region string) (*SQSConsumer, error) {
@@ -37,9 +38,11 @@ func NewSQSConsumer(queueURL, accessKeyID, secretAccessKey, region string) (*SQS
 func (c *SQSConsumer) Consume(callback CallbackFunc) {
 	for {
 		result, err := c.svc.ReceiveMessage(&sqs.ReceiveMessageInput{
-			QueueUrl:            aws.String(c.queueURL),
-			MaxNumberOfMessages: aws.Int64(1),
-			WaitTimeSeconds:     aws.Int64(20),
+			QueueUrl:              aws.String(c.queueURL),
+			MaxNumberOfMessages:   aws.Int64(1),
+			WaitTimeSeconds:       aws.Int64(20),
+			AttributeNames:        aws.StringSlice([]string{"MessageGroupId"}),
+			MessageAttributeNames: aws.StringSlice([]string{"All"}),
 		})
 
 		if err != nil {
@@ -48,26 +51,29 @@ func (c *SQSConsumer) Consume(callback CallbackFunc) {
 
 		if len(result.Messages) > 0 {
 			for _, message := range result.Messages {
-				err = callback(message)
-				if err != nil {
-					log.Printf("Error processing message: %v", err)
-				}
+				// Check if the message has the desired MessageGroupId
+				if message.MessageAttributes["MessageGroupId"].StringValue != nil &&
+					*message.MessageAttributes["MessageGroupId"].StringValue == c.messageGroupID {
+					err = callback(message)
+					if err != nil {
+						log.Printf("Error processing message: %v", err)
+					}
 
-				// Delete the message from the queue
-				_, err = c.svc.DeleteMessage(&sqs.DeleteMessageInput{
-					QueueUrl:      aws.String(c.queueURL),
-					ReceiptHandle: message.ReceiptHandle,
-				})
-				if err != nil {
-					log.Printf("Failed to delete message from queue: %v", err)
+					// Delete the message from the queue
+					_, err = c.svc.DeleteMessage(&sqs.DeleteMessageInput{
+						QueueUrl:      aws.String(c.queueURL),
+						ReceiptHandle: message.ReceiptHandle,
+					})
+					if err != nil {
+						log.Printf("Failed to delete message from queue: %v", err)
+					}
 				}
 			}
 		} else {
-			log.Println("No messages in the queue")
+			log.Println("No messages in the queue with the specified MessageGroupId")
 		}
 	}
 }
-
 func StartConsumer(consumer *SQSConsumer, callback CallbackFunc) {
 	go consumer.Consume(callback)
 
