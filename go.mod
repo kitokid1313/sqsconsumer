@@ -1,0 +1,7 @@
+module github.com/kitokid1313/sqsconsumer
+
+go 1.20
+
+require github.com/aws/aws-sdk-go v1.44.275
+
+require github.com/jmespath/go-jmespath v0.4.0 // indirect
