@@ -20,7 +20,7 @@ type SQSConsumer struct {
 	messageGroupID string
 }
 
-func NewSQSConsumer(queueURL, accessKeyID, secretAccessKey, region string) (*SQSConsumer, error) {
+func NewSQSConsumer(queueURL, accessKeyID, secretAccessKey, region string, messageGroupID string) (*SQSConsumer, error) {
 	sess, err := session.NewSession(&aws.Config{
 		Region:      aws.String(region),
 		Credentials: credentials.NewStaticCredentials(accessKeyID, secretAccessKey, ""),
@@ -30,8 +30,9 @@ func NewSQSConsumer(queueURL, accessKeyID, secretAccessKey, region string) (*SQS
 	}
 
 	return &SQSConsumer{
-		svc:      sqs.New(sess),
-		queueURL: queueURL,
+		svc:            sqs.New(sess),
+		queueURL:       queueURL,
+		messageGroupID: messageGroupID,
 	}, nil
 }
 
